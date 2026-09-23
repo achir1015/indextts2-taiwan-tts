@@ -1,0 +1,45 @@
+台灣語音 MP3 工具（IndexTTS2）使用說明
+=========================================
+
+【第一次安裝】
+1. 雙擊 install_indextts2.bat
+   → 安裝 uv、Python 套件、下載 IndexTTS-2 模型（約 10 GB，30~60 分鐘）
+   → 最後會自動產生 logs\selftest.wav 測試語音
+2. （選配）雙擊 install_hokkien.bat 安裝台語引擎（實驗性，約 5~6 GB）
+
+【每次使用】
+1. 雙擊 start_server.bat
+   → 第一次會自動下載 8 種台灣口音聲音範本（3~10 分鐘）
+   → 瀏覽器自動開啟 http://127.0.0.1:7861
+2. 輸入文字 → 選聲音 → 產生 MP3 → 下載
+3. 用完關掉黑色視窗即可
+
+【小說劇場（多角色對話）】
+  網頁「小說劇場」分頁：寫劇本（或貼小說自動轉換）→ 調整每個角色的聲音、左右位置 → 開始製作 MP3
+  - 一問一答：一行一句「角色：台詞」
+  - 同時說話：【同時】…【/同時】之間的句子會一起開口（菜市場、吵架）
+  - 搶話：行首加 >
+  - 背景音：[背景 菜市場 40%]（菜市場 / 人群嘈雜 / 會議廳 / 雨聲 / 自己上傳）
+  - 做過的句子會快取在 app\cache\lines，改劇本只重做有變的句子
+
+【手機捷徑】
+  iPhone Safari：分享 →「加入主畫面」；Android Chrome：⋮ →「加到主畫面」
+
+【資料夾說明】
+  app\server.py           網站主程式（櫃台）
+  app\domain.py           領域模型：聲音範本、配音工單、成品
+  app\engines.py          語音引擎：IndexTTS2（國語）、台語引擎窗口
+  app\audio.py            ffmpeg 後製：轉 MP3、調語速、整理樣本
+  app\prepare_voices.py   從開放資料集挑選台灣口音樣本
+  app\hokkien_worker.py   台語引擎（獨立環境執行）
+  app\static\index.html   網頁介面
+  app\voices\             8 種聲音樣本（可在網頁「聲音範本」更換）
+  app\outputs\            產生的 MP3
+  logs\                   安裝與執行紀錄（出問題時看這裡）
+
+  IndexTTS2 程式本體與模型：%USERPROFILE%\index-tts（模型在 checkpoints_2）
+  Python 環境：%USERPROFILE%\indextts-py311（用 Anaconda 建立）
+
+【讓其他人使用】
+  同一個 Wi-Fi：http://這台電腦的IP:7861
+  放到網路上：編輯 start_server.bat，設定 TTS_PASSWORD 密碼，再用 ngrok http 7861
