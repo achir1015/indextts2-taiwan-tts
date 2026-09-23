@@ -1,0 +1,6 @@
+# Windows 批次檔必須保持 CRLF，否則 cmd 會讀錯
+*.bat text eol=crlf
+*.txt text eol=crlf
+*.py  text eol=lf
+*.html text eol=lf
+*.md  text eol=lf

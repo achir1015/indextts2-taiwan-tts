@@ -1,0 +1,17 @@
+# ---- 個人資料：聲音樣本、產生的音檔（不上傳）----
+app/voices/
+app/outputs/
+app/cache/
+app/ambience/
+logs/
+hf_home/
+*.mp3
+*.wav
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+
+# ---- 安裝檔 ----
+*.exe
+*.zip

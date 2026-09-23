@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>台灣語音 MP3 工具</title>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/static/icons/icon-32.png">
+<link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0f766e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="台灣語音">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<style>
+  :root{
+    --bg:#f6f4ef; --card:#ffffff; --ink:#1f2328; --muted:#6b6f76; --line:#e4e0d8;
+    --accent:#0f766e; --accent-ink:#ffffff; --accent-soft:#e3f3f1;
+    --warn:#b45309; --warn-soft:#fdf1e2; --bad:#b91c1c; --bad-soft:#fdeaea; --ok:#15803d;
+    --radius:14px; --shadow:0 1px 2px rgba(0,0,0,.05),0 4px 16px rgba(0,0,0,.04);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#15171a; --card:#1d2024; --ink:#e8e6e3; --muted:#9aa0a6; --line:#2c3036;
+      --accent:#2dd4bf; --accent-ink:#06201d; --accent-soft:#13302c;
+      --warn:#f59e0b; --warn-soft:#33260f; --bad:#f87171; --bad-soft:#3a1717; --ok:#4ade80;
+      --shadow:none;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:"Noto Sans TC","Microsoft JhengHei","PingFang TC",system-ui,sans-serif;line-height:1.55}
+  .wrap{max-width:1080px;margin:0 auto;padding:20px 16px 60px}
+  header{display:flex;flex-wrap:wrap;align-items:center;gap:12px;justify-content:space-between;margin-bottom:16px}
+  h1{font-size:22px;margin:0;letter-spacing:.5px}
+  h1 small{display:block;font-size:13px;font-weight:400;color:var(--muted)}
+  .chips{display:flex;gap:8px;flex-wrap:wrap}
+  .chip{font-size:12px;padding:4px 10px;border-radius:999px;background:var(--card);border:1px solid var(--line);color:var(--muted)}
+  .chip b{color:var(--ink);font-weight:600}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:var(--muted);vertical-align:middle}
+  .dot.ready{background:var(--ok)} .dot.loading{background:var(--warn);animation:pulse 1s infinite}
+  .dot.error{background:var(--bad)}
+  @keyframes pulse{50%{opacity:.3}}
+  nav{display:flex;gap:6px;overflow-x:auto;white-space:nowrap;margin-bottom:14px;border-bottom:1px solid var(--line)}
+  nav button{background:none;border:none;padding:10px 14px;font-size:15px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;font-family:inherit}
+  nav button.on{color:var(--ink);border-bottom-color:var(--accent);font-weight:600}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow);margin-bottom:16px}
+  .card h2{font-size:16px;margin:0 0 12px}
+  .grid2{display:grid;grid-template-columns:1.4fr 1fr;gap:16px}
+  @media (max-width:820px){.grid2{grid-template-columns:1fr}}
+  textarea{width:100%;min-height:190px;resize:vertical;border:1px solid var(--line);border-radius:10px;padding:12px;font-size:16px;font-family:inherit;background:var(--bg);color:var(--ink)}
+  textarea:focus,select:focus,input:focus{outline:2px solid var(--accent);outline-offset:1px}
+  .meta{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:4px}
+  label.lbl{display:block;font-size:13px;color:var(--muted);margin:14px 0 6px}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .seg button{border:none;background:var(--card);color:var(--ink);padding:8px 14px;cursor:pointer;font-family:inherit;font-size:14px}
+  .seg button.on{background:var(--accent);color:var(--accent-ink)}
+  .seg button:disabled{opacity:.45;cursor:not-allowed}
+  .voices{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  @media (max-width:520px){.voices{grid-template-columns:repeat(2,1fr)}}
+  .voice{border:1px solid var(--line);border-radius:10px;padding:10px 6px;text-align:center;cursor:pointer;background:var(--card);color:var(--ink);font-family:inherit;position:relative}
+  .voice .ico{font-size:24px;display:block}
+  .voice .nm{font-size:13px}
+  .voice.on{border-color:var(--accent);background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent)}
+  .voice.off{opacity:.5}
+  .voice .tag{position:absolute;top:4px;right:6px;font-size:10px;color:var(--warn)}
+  select,input[type=text]{border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:14px;background:var(--card);color:var(--ink);font-family:inherit}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .row > *{flex:1}
+  .btn{border:none;border-radius:10px;padding:10px 16px;font-size:15px;cursor:pointer;font-family:inherit;background:var(--line);color:var(--ink)}
+  .btn.primary{background:var(--accent);color:var(--accent-ink);font-weight:600;width:100%;padding:14px;font-size:17px;margin-top:18px}
+  .btn.small{padding:6px 10px;font-size:13px;border-radius:8px}
+  .btn.danger{background:var(--bad-soft);color:var(--bad)}
+  .btn:disabled{opacity:.5;cursor:wait}
+  .note{font-size:13px;padding:10px 12px;border-radius:10px;background:var(--warn-soft);color:var(--warn);margin-top:10px}
+  .err{background:var(--bad-soft);color:var(--bad)}
+  audio{width:100%;margin-top:8px}
+  .result{margin-top:14px;display:none}
+  .result.show{display:block}
+  .hist{list-style:none;padding:0;margin:0}
+  .hist li{border-top:1px solid var(--line);padding:10px 0;display:grid;grid-template-columns:1fr auto;gap:6px 10px;align-items:center}
+  .hist .t{font-size:14px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .hist .s{font-size:12px;color:var(--muted)}
+  .hist audio{grid-column:1/-1;height:36px;margin:0}
+  .acts{display:flex;gap:6px}
+  a.dl{color:var(--accent);text-decoration:none;font-size:13px;font-weight:600}
+  .tplgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+  @media (max-width:820px){.tplgrid{grid-template-columns:1fr}}
+  .tpl h3{margin:0;font-size:16px;display:flex;align-items:center;gap:8px}
+  .tpl .src{font-size:12px;color:var(--muted);margin:4px 0 8px}
+  .badge{font-size:11px;padding:2px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent)}
+  .badge.no{background:var(--bad-soft);color:var(--bad)} .badge.tmp{background:var(--warn-soft);color:var(--warn)}
+  .cands{display:flex;flex-direction:column;gap:6px;margin:8px 0}
+  .cand{display:flex;gap:6px;align-items:center}
+  .cand audio{margin:0;height:32px}
+  .rec{color:var(--bad);font-weight:600}
+  .script{font-size:13px;background:var(--bg);border-radius:8px;padding:8px 10px;margin:8px 0;color:var(--muted)}
+  .spin{display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:rot .8s linear infinite;vertical-align:-2px;margin-right:6px}
+  @keyframes rot{to{transform:rotate(360deg)}}
+  .hide{display:none!important}
+  #login{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:9}
+  #login .card{width:min(360px,92vw)}
+  .grid2 > *{min-width:0}
+  .cast td:first-child{white-space:nowrap}
+  .cast select[data-k=language]{max-width:80px}
+  @media (max-width:520px){ .cast input[type=range]{min-width:48px;width:56px} .cast select{max-width:88px} }
+  .tplbtns{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+  #dramaScript{min-height:340px;font-size:15px;line-height:1.7}
+  .cast{width:100%;border-collapse:collapse;font-size:13px}
+  .cast th{text-align:left;color:var(--muted);font-weight:500;padding:4px 4px;border-bottom:1px solid var(--line)}
+  .cast td{padding:6px 4px;border-bottom:1px solid var(--line);vertical-align:middle}
+  .cast select{padding:4px 6px;font-size:13px;max-width:110px}
+  .cast input[type=range]{min-width:70px}
+  .stat{font-size:13px;color:var(--muted);margin:8px 0}
+  .stat b{color:var(--ink)}
+  .bar{height:10px;background:var(--line);border-radius:999px;overflow:hidden;margin:10px 0 6px}
+  .bar > i{display:block;height:100%;background:var(--accent);width:0;transition:width .4s}
+  .amb{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+  .amb button{font-size:12px}
+  details.howto{font-size:13px;margin-top:10px}
+  details.howto pre{background:var(--bg);padding:10px;border-radius:8px;white-space:pre-wrap;font-size:12.5px;line-height:1.6;margin:6px 0}
+  .install{display:none}
+  .install.show{display:inline-block}
+  .jobs li{font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🎙️ 台灣語音 MP3 工具<small>IndexTTS2 文字轉語音 · 台灣口音聲音範本</small></h1>
+    <div class="chips" id="chips"></div>
+  </header>
+
+  <nav>
+    <button class="on" data-tab="tts">文字轉語音</button>
+    <button data-tab="drama">小說劇場</button>
+    <button data-tab="tpl">聲音範本</button>
+    <button data-tab="help">說明</button>
+  </nav>
+
+  <!-- ============ 文字轉語音 ============ -->
+  <section id="tab-tts">
+    <div class="grid2">
+      <div class="card">
+        <h2>1. 輸入文字</h2>
+        <textarea id="text" placeholder="在這裡輸入要轉成語音的文字（繁體中文即可）&#10;例如：各位鄉親大家好，歡迎來到台南，今天帶大家去吃牛肉湯跟虱目魚粥。"></textarea>
+        <div class="meta"><span id="count">0 字</span><span id="estHint">這台電腦用 CPU 運算，每 10 個字約需 1~2 分鐘</span></div>
+
+        <label class="lbl">語言</label>
+        <div class="seg" id="langSeg">
+          <button data-lang="zh" class="on">台灣國語</button>
+          <button data-lang="nan">台語（閩南語）· 實驗</button>
+        </div>
+        <div id="langNote" class="note hide"></div>
+      </div>
+
+      <div class="card">
+        <h2>2. 選擇聲音</h2>
+        <div class="voices" id="voicePick"></div>
+
+        <label class="lbl">情緒 <span id="emoVal"></span></label>
+        <div class="row">
+          <select id="emotion"></select>
+          <input type="range" id="emoStrength" min="0.1" max="1" step="0.05" value="0.6" title="情緒強度">
+        </div>
+
+        <label class="lbl">語速 <b id="speedVal">1.00×</b></label>
+        <input type="range" id="speed" min="0.6" max="1.6" step="0.05" value="1">
+
+        <label class="lbl">MP3 音質</label>
+        <select id="bitrate">
+          <option value="128k">128 kbps（檔案小）</option>
+          <option value="192k" selected>192 kbps（建議）</option>
+          <option value="320k">320 kbps（最高）</option>
+        </select>
+
+        <button class="btn primary" id="go">產生 MP3</button>
+        <div id="goErr" class="note err hide"></div>
+        <div class="result" id="result">
+          <audio id="player" controls></audio>
+          <div class="row" style="margin-top:6px">
+            <span class="s" id="resInfo" style="font-size:12px;color:var(--muted)"></span>
+            <a class="dl" id="resDl" download style="flex:0">⬇ 下載 MP3</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>產生紀錄</h2>
+      <ul class="hist" id="hist"></ul>
+      <div id="histEmpty" class="s" style="color:var(--muted);font-size:14px">還沒有紀錄。</div>
+    </div>
+  </section>
+
+
+  <!-- ============ 小說劇場 ============ -->
+  <section id="tab-drama" class="hide">
+    <div class="grid2">
+      <div class="card">
+        <h2>1. 劇本</h2>
+        <div class="tplbtns">
+          <button class="btn small" data-dtpl="qa">💬 一問一答</button>
+          <button class="btn small" data-dtpl="market">🥬 菜市場（同時說話）</button>
+          <button class="btn small" data-dtpl="debate">🎤 辯論</button>
+          <button class="btn small" data-dtpl="fight">💢 吵架</button>
+          <button class="btn small" id="novelOpen">📖 小說轉劇本</button>
+        </div>
+        <div id="novelBox" class="card hide" style="background:var(--bg);box-shadow:none">
+          <div style="font-size:13px;color:var(--muted);margin-bottom:6px">貼上小說內文（對話用「」包起來），會自動整理成劇本。找不到說話者的句子會標「？」，請檢查。</div>
+          <textarea id="novelText" style="min-height:150px" placeholder="例如：&#10;阿嬤生氣地罵：「上禮拜才三十，你搶錢喔！」&#10;「現在颱風天嘛。」老闆笑著說。"></textarea>
+          <div class="row" style="margin-top:8px">
+            <input type="text" id="novelNames" placeholder="角色名（可空白，自動偵測），例如：阿明、阿嬤、老闆">
+            <label style="flex:0 0 auto;font-size:13px"><input type="checkbox" id="novelNarr" checked> 含旁白</label>
+            <button class="btn small" id="novelGo" style="flex:0 0 auto">轉換 ↓</button>
+          </div>
+        </div>
+        <input type="text" id="dramaTitle" placeholder="作品名稱（會用在檔名）" style="width:100%;margin-bottom:8px">
+        <textarea id="dramaScript" placeholder="角色：台詞&#10;每行一句。點上方範本看看寫法。"></textarea>
+        <details class="howto"><summary style="cursor:pointer">📘 劇本寫法說明</summary>
+<pre># 井號開頭是註解
+[角色] 阿明=年輕男音 左, 阿嬤=高齡女音 右 台語, 老闆=中年男音 80%
+      ↑ 聲音、左/右/中（立體聲位置）、台語、音量%（都可省略，下方表格也能調）
+[背景 菜市場 40%]    背景音：菜市場 / 人群嘈雜 / 會議廳 / 雨聲 / 自己上傳的；[背景 無] 關掉
+[停頓 1.5]           停 1.5 秒
+
+阿明：一般台詞
+阿嬤（生氣）：加情緒：開心 生氣 悲傷 害怕 厭惡 低落 驚訝 平靜
+阿嬤（生氣80%）：情緒強度
+>阿明：開頭加 &gt; ＝ 搶話，會在上一句還沒講完時插進來
+
+【同時】             ← 這段裡的每一句會「同時」開口（叫賣、互嗆）
+攤販甲：來喔來喔！
+攤販乙：俗俗賣喔！
+【/同時】
+
+旁白：沒寫角色的行也會當成旁白</pre></details>
+      </div>
+
+      <div class="card">
+        <h2>2. 演員與混音</h2>
+        <div id="dramaEmpty" style="font-size:14px;color:var(--muted)">輸入劇本後，這裡會列出角色，可以調整聲音、左右位置與音量。</div>
+        <div style="overflow-x:auto"><table class="cast hide" id="castTable">
+          <thead><tr><th>角色</th><th>聲音</th><th>語言</th><th>左 ↔ 右</th><th>音量</th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+        <div class="stat" id="dramaStat"></div>
+        <div id="dramaWarn" class="note hide"></div>
+
+        <label class="lbl">對話節奏</label>
+        <div class="seg" id="paceSeg">
+          <button data-v="從容">從容</button><button data-v="一般" class="on">一般</button>
+          <button data-v="緊湊">緊湊</button><button data-v="爭吵">爭吵（重疊）</button>
+        </div>
+        <label class="lbl">空間感</label>
+        <div class="seg" id="roomSeg">
+          <button data-v="無" class="on">無</button><button data-v="房間">房間</button><button data-v="大廳">大廳（辯論會場）</button>
+        </div>
+        <label class="lbl">背景音 <span style="font-size:12px">（按一下試聽；劇本裡用 [背景 名稱] 指定）</span></label>
+        <div class="amb" id="ambList"></div>
+        <audio id="ambPlayer" class="hide" controls></audio>
+        <div class="row" style="margin-top:4px">
+          <span style="font-size:13px;color:var(--muted);flex:0 0 auto">背景音量</span>
+          <input type="range" id="ambVol" min="0" max="2" step="0.1" value="1">
+          <label class="btn small" style="flex:0 0 auto">＋ 上傳背景音<input type="file" id="ambUpload" accept="audio/*" hidden></label>
+        </div>
+
+        <button class="btn primary" id="dramaGo">開始製作 MP3</button>
+        <div id="dramaErr" class="note err hide"></div>
+        <div id="dramaProg" class="hide">
+          <div class="bar"><i id="dramaBar"></i></div>
+          <div class="stat" id="dramaProgText"></div>
+        </div>
+        <div class="result" id="dramaResult">
+          <audio id="dramaPlayer" controls></audio>
+          <div class="row" style="margin-top:6px">
+            <span id="dramaResInfo" style="font-size:12px;color:var(--muted)"></span>
+            <a class="dl" id="dramaDl" download style="flex:0">⬇ 下載 MP3</a>
+          </div>
+        </div>
+        <div class="note" style="margin-top:14px">💡 同一句台詞做過會記住。改劇本後重新製作，只會重做有改動的句子，所以可以先做好，再慢慢微調。</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 聲音範本 ============ -->
+  <section id="tab-tpl" class="hide">
+    <div class="card">
+      <h2>聲音範本是什麼？</h2>
+      <div style="font-size:14px;color:var(--muted)">
+        IndexTTS2 是「聽一段樣本、模仿那個人說話」的模型。就像請一位配音員：樣本是誰、什麼口音、幾歲，產生出來的聲音就像誰。
+        所以<b>樣本越像「台灣人講話」，成品就越有台灣腔</b>。每種聲音放一段 <b>5~15 秒、清楚、沒有背景音樂</b>的說話錄音即可。
+      </div>
+      <div class="script">建議朗讀稿：「今天天氣真好，我們下午去夜市吃蚵仔煎，再買一杯珍珠奶茶。你要不要一起來？記得帶雨傘喔。」</div>
+      <div class="row" style="max-width:420px">
+        <input type="text" id="newName" placeholder="新增自訂聲音，例如：阿嬤（台南）">
+        <button class="btn small" id="addVoice" style="flex:0 0 auto">＋ 新增</button>
+      </div>
+    </div>
+    <div class="tplgrid" id="tplGrid"></div>
+  </section>
+
+  <!-- ============ 說明 ============ -->
+  <section id="tab-help" class="hide">
+    <div class="card" style="font-size:14px">
+      <h2>使用說明</h2>
+      <ol>
+        <li>輸入文字 → 選聲音 → 按「產生 MP3」。第一次產生會比較慢（模型暖身）。</li>
+        <li>情緒選「自然」時，語氣會跟著樣本本身；選其他情緒可以調整強度。</li>
+        <li>語速是產生後再用 ffmpeg 調整，不會改變音高。</li>
+        <li>繁體字會自動轉成簡體再交給模型（發音比較準），不影響你輸入的內容。</li>
+        <li>唸錯或唸成大陸讀音的字（例如「垃圾」「星期」），可以改寫成同音字，例如「樂色」。</li>
+      </ol>
+      <h2>關於台語</h2>
+      <p>IndexTTS2 只會說國語、英語。台語是另外接的<b>實驗性</b>閩南語模型（MERaLiON OmniVoice Hokkien，原本以新加坡福建話為主），
+      搭配台灣長輩的聲音樣本使用，腔調接近但不完全等於台灣台語。需要先執行一次 <code>install_hokkien.bat</code>。</p>
+      <h2>在手機桌面建立捷徑</h2>
+      <ul>
+        <li><b>iPhone（Safari）</b>：開啟本網址 → 下方「分享」按鈕 → 「加入主畫面」。</li>
+        <li><b>Android（Chrome）</b>：開啟本網址 → 右上「⋮」→「加到主畫面」或「安裝應用程式」。</li>
+        <li>手機要能連到這台電腦：同一個 Wi-Fi 用 <code>http://電腦IP:7861</code>，或用 ngrok 的 https 網址（可安裝成 App）。</li>
+      </ul>
+      <button class="btn small install" id="installBtn">📲 安裝到這台裝置</button>
+      <h2>給別人用</h2>
+      <p>同一個 Wi-Fi 的電腦可以用 <code>http://這台電腦的IP:7861</code> 開啟。要放到網際網路上，建議在 <code>start_server.bat</code> 設定 <code>TTS_PASSWORD</code> 密碼，再用 ngrok 轉出去。
+      注意：網頁錄音功能只能在 <code>127.0.0.1</code> 或 https 網址下使用。</p>
+      <h2>聲音授權</h2>
+      <p>預設候選樣本取自開放授權資料集（Common Voice 台灣華語 CC0、TaigiSpeech CC BY 4.0）。請勿用來冒充特定真人；對外發布時，建議改用有同意書的自錄聲音。</p>
+    </div>
+  </section>
+</div>
+
+<div id="login" class="hide">
+  <div class="card">
+    <h2>請輸入使用密碼</h2>
+    <input type="text" id="pw" style="width:100%" placeholder="密碼">
+    <button class="btn primary" id="pwGo">進入</button>
+    <div id="pwErr" class="note err hide">密碼錯誤</div>
+  </div>
+</div>
+
+<script>
+// ================= 狀態（前端的小型領域模型） =================
+const ICONS = {young_female:"👩", young_male:"👨", girl:"👧", boy:"👦",
+               middle_female:"👩‍💼", middle_male:"👨‍💼", elder_female:"👵", elder_male:"👴"};
+const state = { voices: [], voiceId: "young_female", lang: "zh", status: null, key: "" };
+
+try { state.key = localStorage.getItem("tts_key") || ""; } catch(e) {}
+const $ = s => document.querySelector(s);
+
+async function api(path, opt = {}) {
+  opt.headers = Object.assign({}, opt.headers || {}, state.key ? {"x-access-key": state.key} : {});
+  const r = await fetch(path, opt);
+  if (r.status === 401) { showLogin(); throw new Error("需要密碼"); }
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.detail || ("錯誤 " + r.status));
+  return data;
+}
+const withKey = url => state.key ? url + (url.includes("?") ? "&" : "?") + "key=" + encodeURIComponent(state.key) : url;
+
+// ================= 分頁 =================
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("nav button").forEach(x => x.classList.toggle("on", x === b));
+  ["tts","drama","tpl","help"].forEach(t => $("#tab-"+t).classList.toggle("hide", t !== b.dataset.tab));
+  if (b.dataset.tab === "tpl") renderTemplates();
+  if (b.dataset.tab === "drama") dramaEnter();
+});
+
+// ================= 引擎狀態 =================
+async function refreshStatus() {
+  try {
+    state.status = await api("/api/status");
+    if (state.status.password_required && !state.key) showLogin();
+    const e = state.status.engines;
+    const cls = s => s === "ready" ? "ready" : s === "loading" ? "loading" : "error";
+    $("#chips").innerHTML =
+      `<span class="chip"><span class="dot ${cls(e.zh.status)}"></span>國語引擎：<b>${e.zh.message}</b></span>` +
+      (e.zh.device && e.zh.device !== "?" ? `<span class="chip">運算：<b>${e.zh.device}</b></span>` : "") +
+      `<span class="chip"><span class="dot ${cls(e.nan.status)}"></span>台語引擎：<b>${e.nan.status==="ready"?"就緒":"未啟用"}</b></span>`;
+    if ($("#emotion").options.length === 0) {
+      $("#emotion").innerHTML = state.status.emotions.map(x => `<option>${x}</option>`).join("");
+      syncEmotion();
+    }
+    updateLangNote();
+    if (e.zh.status === "loading") setTimeout(refreshStatus, 3000);
+  } catch (err) { setTimeout(refreshStatus, 5000); }
+}
+
+function updateLangNote() {
+  const n = $("#langNote");
+  if (state.lang === "nan") {
+    const s = state.status && state.status.engines.nan;
+    n.textContent = s && s.status === "ready"
+      ? "台語為實驗功能：請直接輸入台語漢字（例如「你食飽未？」），腔調接近但不完全等於台灣台語。"
+      : "台語引擎尚未安裝。請在電腦上執行 E:\\Index TTS2\\install_hokkien.bat，完成後重新啟動 start_server.bat。";
+    n.classList.remove("hide");
+  } else n.classList.add("hide");
+}
+document.querySelectorAll("#langSeg button").forEach(b => b.onclick = () => {
+  state.lang = b.dataset.lang;
+  document.querySelectorAll("#langSeg button").forEach(x => x.classList.toggle("on", x === b));
+  $("#emotion").disabled = $("#emoStrength").disabled = state.lang === "nan";
+  updateLangNote();
+});
+
+// ================= 聲音選擇 =================
+async function loadVoices() {
+  state.voices = await api("/api/voices");
+  if (!state.voices.find(v => v.id === state.voiceId && v.ready)) {
+    const first = state.voices.find(v => v.ready); if (first) state.voiceId = first.id;
+  }
+  $("#voicePick").innerHTML = state.voices.map(v => `
+    <button class="voice ${v.id===state.voiceId?"on":""} ${v.ready?"":"off"}" data-id="${v.id}" title="${v.ready? v.source : "尚未設定樣本"}">
+      ${v.placeholder ? '<span class="tag">暫代</span>' : ""}
+      <span class="ico">${ICONS[v.id] || "🗣️"}</span><span class="nm">${esc(v.name)}</span>
+    </button>`).join("");
+  document.querySelectorAll("#voicePick .voice").forEach(b => b.onclick = () => {
+    state.voiceId = b.dataset.id;
+    document.querySelectorAll("#voicePick .voice").forEach(x => x.classList.toggle("on", x === b));
+  });
+}
+
+// ================= 參數 =================
+$("#text").oninput = () => {
+  const n = $("#text").value.length;
+  const cpu = state.status && /CPU/.test(state.status.engines.zh.device || "");
+  // 粗估：CPU 約每字 8~12 秒；有 NVIDIA 顯示卡約每字 0.3 秒
+  const est = Math.round(n * (cpu ? 10 : 0.3));
+  $("#count").textContent = n + " 字" + (n ? `，預估約 ${est >= 60 ? Math.round(est/60) + " 分鐘" : est + " 秒"}` : "");
+};
+$("#speed").oninput = () => $("#speedVal").textContent = (+$("#speed").value).toFixed(2) + "×";
+function syncEmotion(){
+  const natural = $("#emotion").value === "自然";
+  $("#emoStrength").classList.toggle("hide", natural);
+  $("#emoVal").textContent = natural ? "（跟著樣本的語氣）" : `強度 ${Math.round($("#emoStrength").value*100)}%`;
+}
+$("#emotion").onchange = syncEmotion; $("#emoStrength").oninput = syncEmotion;
+
+// ================= 產生 =================
+$("#go").onclick = async () => {
+  const btn = $("#go"); $("#goErr").classList.add("hide");
+  const t0 = Date.now();
+  btn.disabled = true;
+  const fmt = s => s >= 60 ? `${Math.floor(s/60)} 分 ${s%60} 秒` : `${s} 秒`;
+  let progText = "準備中";
+  const tick = setInterval(() => btn.innerHTML = `<span class="spin"></span>產生中… ${fmt(Math.round((Date.now()-t0)/1000))}　${progText}`, 500);
+  const poll = setInterval(async () => {
+    try {
+      const p = await api("/api/progress");
+      if (p.segment) progText = `第 ${p.segment[0]} / ${p.segment[1]} 段` + (p.eta ? `，預估還要約 ${fmt(p.eta)}` : "");
+      else if (p.value >= 0.9) progText = "存檔中";
+    } catch (e) {}
+  }, 3000);
+  try {
+    const r = await api("/api/tts", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({
+      text: $("#text").value, voice_id: state.voiceId, language: state.lang,
+      emotion: $("#emotion").value, emotion_strength: +$("#emoStrength").value,
+      speed: +$("#speed").value, bitrate: $("#bitrate").value })});
+    const url = withKey("/outputs/" + r.mp3_file);
+    $("#player").src = url; $("#player").play().catch(()=>{});
+    $("#resDl").href = url; $("#resDl").setAttribute("download", fileName(r));
+    $("#resInfo").textContent = `${r.voice_name} · 長度 ${r.seconds} 秒 · 花費 ${r.elapsed} 秒`;
+    $("#result").classList.add("show");
+    loadHistory();
+  } catch (e) {
+    $("#goErr").textContent = e.message; $("#goErr").classList.remove("hide");
+  } finally { clearInterval(tick); clearInterval(poll); btn.disabled = false; btn.textContent = "產生 MP3"; }
+};
+function fileName(r){ return (r.text.replace(/[\\/:*?"<>|\s]/g,"").slice(0,16) || "語音") + "_" + r.voice_name + ".mp3"; }
+
+// ================= 紀錄 =================
+async function loadHistory() {
+  const items = await api("/api/history");
+  $("#histEmpty").classList.toggle("hide", items.length > 0);
+  $("#hist").innerHTML = items.slice(0, 50).map(r => `
+    <li>
+      <div><div class="t">${esc(r.text)}</div>
+        <div class="s">${esc(r.voice_name)} · ${r.language==="nan"?"台語":"國語"} · ${r.emotion} · ${r.speed}× · ${r.seconds} 秒 · ${new Date(r.created_at*1000).toLocaleString("zh-TW")}</div></div>
+      <div class="acts"><a class="dl" href="${withKey("/outputs/"+r.mp3_file)}" download="${esc(fileName(r))}">⬇ MP3</a>
+        <button class="btn small danger" data-del="${r.id}">刪除</button></div>
+      <audio controls preload="none" src="${withKey("/outputs/"+r.mp3_file)}"></audio>
+    </li>`).join("");
+  document.querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
+    await api("/api/history/" + b.dataset.del, {method:"DELETE"}); loadHistory();
+  });
+}
+
+// ================= 聲音範本管理 =================
+let recorder = null;
+async function renderTemplates() {
+  await loadVoices();
+  $("#tplGrid").innerHTML = state.voices.map(v => `
+    <div class="card tpl" data-id="${v.id}">
+      <h3>${ICONS[v.id]||"🗣️"} ${esc(v.name)}
+        ${v.ready ? (v.placeholder ? '<span class="badge tmp">暫代樣本</span>' : '<span class="badge">已設定</span>') : '<span class="badge no">未設定</span>'}
+        ${v.id.startsWith("custom_") ? `<button class="btn small danger" data-rm="${v.id}" style="margin-left:auto">刪除</button>` : ""}
+      </h3>
+      <div class="src">${v.ready ? "來源：" + esc(v.source || "—") : "請上傳或錄一段 5~15 秒的說話聲"}</div>
+      ${v.ready ? `<audio controls preload="none" src="${withKey("/api/voices/"+v.id+"/sample?t="+v.updated_at)}"></audio>` : ""}
+      ${v.candidates.length ? `<details style="margin-top:8px"><summary style="cursor:pointer;font-size:13px">從候選樣本挑選（${v.candidates.length}）</summary>
+        <div class="cands">${v.candidates.map(c => `<div class="cand"><audio controls preload="none" src="${withKey("/api/candidates/"+c)}"></audio>
+          <button class="btn small" data-use="${c}">選用</button></div>`).join("")}</div></details>` : ""}
+      <div class="row" style="margin-top:10px">
+        <label class="btn small" style="text-align:center">📁 上傳音檔<input type="file" accept="audio/*,video/*" data-up="${v.id}" hidden></label>
+        <button class="btn small" data-rec="${v.id}">🎤 錄音</button>
+      </div>
+      <div class="note hide" data-msg="${v.id}"></div>
+    </div>`).join("");
+
+  const msg = (id, t, bad) => { const m = document.querySelector(`[data-msg="${id}"]`); m.textContent = t; m.className = "note" + (bad ? " err" : ""); };
+  document.querySelectorAll("[data-up]").forEach(inp => inp.onchange = async () => {
+    const id = inp.dataset.up; const fd = new FormData(); fd.append("file", inp.files[0]);
+    msg(id, "上傳處理中…");
+    try { await api(`/api/voices/${id}/sample`, {method:"POST", body: fd}); renderTemplates(); }
+    catch (e) { msg(id, e.message, true); }
+  });
+  document.querySelectorAll("[data-use]").forEach(b => b.onclick = async () => {
+    const id = b.closest(".tpl").dataset.id;
+    await api(`/api/voices/${id}/use_candidate/${encodeURIComponent(b.dataset.use)}`, {method:"POST"});
+    renderTemplates();
+  });
+  document.querySelectorAll("[data-rm]").forEach(b => b.onclick = async () => {
+    await api("/api/voices/" + b.dataset.rm, {method:"DELETE"}); renderTemplates();
+  });
+  document.querySelectorAll("[data-rec]").forEach(b => b.onclick = () => toggleRecord(b, b.dataset.rec, msg));
+}
+
+async function toggleRecord(btn, id, msg) {
+  if (recorder && recorder.state === "recording") { recorder.stop(); return; }
+  if (!navigator.mediaDevices || !window.MediaRecorder) { msg(id, "這個網址不能錄音（需在 127.0.0.1 或 https 下開啟），請改用上傳。", true); return; }
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({audio: {echoCancellation: false, noiseSuppression: true}}); }
+  catch (e) { msg(id, "無法使用麥克風：" + e.message, true); return; }
+  const chunks = []; recorder = new MediaRecorder(stream);
+  recorder.ondataavailable = e => chunks.push(e.data);
+  const t0 = Date.now();
+  const tick = setInterval(() => { const s = Math.round((Date.now()-t0)/1000);
+    btn.innerHTML = `<span class="rec">● ${s} 秒</span> 按此停止`; if (s >= 15) recorder.stop(); }, 300);
+  recorder.onstop = async () => {
+    clearInterval(tick); stream.getTracks().forEach(t => t.stop()); btn.textContent = "🎤 錄音";
+    const fd = new FormData(); fd.append("file", new Blob(chunks, {type: recorder.mimeType}), "rec.webm");
+    msg(id, "處理錄音中…");
+    try { await api(`/api/voices/${id}/sample`, {method:"POST", body: fd}); renderTemplates(); }
+    catch (e) { msg(id, e.message, true); }
+  };
+  recorder.start(); msg(id, "錄音中… 請朗讀上方的建議朗讀稿（最多 15 秒）");
+}
+
+$("#addVoice").onclick = async () => {
+  const name = $("#newName").value.trim(); if (!name) return;
+  await api("/api/voices", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({name})});
+  $("#newName").value = ""; renderTemplates();
+};
+
+
+// ================= 小說劇場 =================
+const DRAMA_TPL = {
+  qa: {title:"市場阿公訪問", pace:"一般", room:"房間", text:
+`[角色] 記者=年輕女音 左, 阿公=高齡男音 右
+記者：阿公您好，請問您在這裡擺攤多久了？
+阿公（開心）：喔，差不多四十年囉！
+記者：這四十年來，市場有什麼改變嗎？
+阿公：以前人擠人，現在年輕人都去超市了。
+記者（驚訝）：那生意還好嗎？
+阿公（無奈）：馬馬虎虎啦，老客人還是會來。
+記者：最後想對大家說什麼？
+阿公（開心）：有空來市場走走，阿公算你便宜！`},
+  market: {title:"星期天的菜市場", pace:"緊湊", room:"無", text:
+`[角色] 阿嬤=高齡女音 右, 小美=年輕女音 左, 魚販=中年男音, 菜販=中年女音, 小弟=男童音
+[背景 菜市場 45%]
+旁白：星期天早上，傳統市場裡人聲鼎沸。
+【同時】
+魚販：來喔！現撈的虱目魚，一尾一百！
+菜販：高麗菜一顆五十，買二送蔥喔！
+小弟（開心）：阿嬤，我要吃肉圓！
+【/同時】
+小美：阿嬤，這邊人好多，你慢慢走。
+阿嬤：知道啦，你顧好弟弟就好。
+魚販（開心）：阿嬤，今天的魚很新鮮，帶一尾回去啦！
+阿嬤：一尾一百太貴了，算八十啦。
+>魚販（開心）：好啦好啦，阿嬤說了算！`},
+  debate: {title:"小學生該不該用手機", pace:"一般", room:"大廳", text:
+`[角色] 主持人=年輕女音 中, 正方=中年男音 左, 反方=中年女音 右
+[背景 會議廳 20%]
+主持人：今天的辯題是：小學生應不應該使用手機？請正方先發言。
+正方：手機是學習工具，可以查資料、聯絡家人，應該讓孩子學會正確使用。
+反方（冷靜）：可是研究顯示，太早接觸手機會影響專注力與睡眠。
+正方：所以重點是教育，不是禁止！
+>反方（生氣）：教育需要時間，傷害卻是立刻發生的！
+主持人：請兩位冷靜，我們進入自由辯論。
+【同時】
+正方（生氣）：你這是因噎廢食！
+反方（生氣）：你這是放任不管！
+【/同時】
+主持人：好，時間到！謝謝兩位精彩的發言。`},
+  fight: {title:"深夜的客廳", pace:"爭吵", room:"房間", text:
+`[角色] 老公=中年男音 左, 老婆=中年女音 右, 兒子=男童音
+旁白：晚上十點，客廳的燈還亮著。
+老婆（生氣）：你又這麼晚回來，打電話也不接！
+老公（無奈）：我在加班啊，手機沒電了嘛。
+>老婆（生氣）：每次都這個理由！
+>老公（生氣）：不然你要我怎樣？辭職嗎？
+【同時】
+老婆（生氣）：你根本不在乎這個家！
+老公（生氣）：我就是為了這個家才這麼累！
+【/同時】
+[停頓 1.5]
+兒子（害怕）：爸爸、媽媽，你們不要再吵了……
+老婆（悲傷）：……對不起，吵到你了。
+老公（低落）：是爸爸不好，我們好好說。`},
+};
+const dstate = { cast: {}, pace: "一般", room: "無", parsed: null, job: null, timer: null };
+try { $("#dramaScript").value = localStorage.getItem("drama_script") || ""; $("#dramaTitle").value = localStorage.getItem("drama_title") || ""; } catch(e) {}
+
+function segPick(sel, key){
+  document.querySelectorAll(sel+" button").forEach(b => b.onclick = () => { dstate[key] = b.dataset.v; segSync(sel, key); });
+}
+function segSync(sel, key){ document.querySelectorAll(sel+" button").forEach(b => b.classList.toggle("on", b.dataset.v === dstate[key])); }
+segPick("#paceSeg","pace"); segPick("#roomSeg","room");
+
+document.querySelectorAll("[data-dtpl]").forEach(b => b.onclick = () => {
+  const t = DRAMA_TPL[b.dataset.dtpl];
+  if ($("#dramaScript").value.trim() && !confirmReplace()) return;
+  $("#dramaScript").value = t.text; $("#dramaTitle").value = t.title;
+  dstate.pace = t.pace; dstate.room = t.room; segSync("#paceSeg","pace"); segSync("#roomSeg","room");
+  dstate.cast = {}; dramaParse();
+});
+function confirmReplace(){ return window.confirm("要用範本取代目前的劇本嗎？"); }
+
+$("#novelOpen").onclick = () => $("#novelBox").classList.toggle("hide");
+$("#novelGo").onclick = async () => {
+  try {
+    const r = await api("/api/drama/convert", {method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({prose: $("#novelText").value, names: $("#novelNames").value, narration: $("#novelNarr").checked})});
+    if (r.names && r.names.length) $("#novelNames").value = r.names.join("、");
+    $("#dramaScript").value = r.script; dstate.cast = {}; dramaParse();
+  } catch(e) { showDramaErr(e.message); }
+};
+
+let parseTimer = null;
+$("#dramaScript").oninput = () => { clearTimeout(parseTimer); parseTimer = setTimeout(dramaParse, 700);
+  try { localStorage.setItem("drama_script", $("#dramaScript").value); } catch(e) {} };
+$("#dramaTitle").oninput = () => { try { localStorage.setItem("drama_title", $("#dramaTitle").value); } catch(e) {} };
+
+function showDramaErr(m){ $("#dramaErr").textContent = m; $("#dramaErr").classList.toggle("hide", !m); }
+const fmtT = s => s >= 3600 ? `${Math.floor(s/3600)} 小時 ${Math.round(s%3600/60)} 分` : s >= 60 ? `${Math.floor(s/60)} 分 ${s%60} 秒` : `${s} 秒`;
+
+async function dramaParse(){
+  const text = $("#dramaScript").value;
+  if (!text.trim()) { $("#castTable").classList.add("hide"); $("#dramaEmpty").classList.remove("hide"); $("#dramaStat").textContent=""; return; }
+  try {
+    const r = await api("/api/drama/parse", {method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({script: text, cast: dstate.cast})});
+    dstate.parsed = r; renderCast(r);
+  } catch(e) { showDramaErr(e.message); }
+}
+
+function renderCast(r){
+  if (!state.voices.length) return;
+  const names = r.speakers.length ? r.speakers : Object.keys(r.cast);
+  $("#dramaEmpty").classList.toggle("hide", names.length > 0);
+  $("#castTable").classList.toggle("hide", names.length === 0);
+  const nanOk = state.status && state.status.engines.nan.status === "ready";
+  $("#castTable tbody").innerHTML = names.map(n => { const c = r.cast[n] || {}; return `
+    <tr data-n="${esc(n)}">
+      <td><b>${esc(n)}</b></td>
+      <td><select data-k="voice_id">${state.voices.filter(v=>v.ready).map(v => `<option value="${v.id}" ${v.id===c.voice_id?"selected":""}>${esc(v.name)}</option>`).join("")}</select></td>
+      <td><select data-k="language"><option value="zh">國語</option><option value="nan" ${c.language==="nan"?"selected":""} ${nanOk?"":"disabled"}>台語${nanOk?"":"（未啟用）"}</option></select></td>
+      <td><input type="range" data-k="pan" min="-1" max="1" step="0.1" value="${c.pan ?? 0}"></td>
+      <td><input type="range" data-k="volume" min="0.3" max="1.6" step="0.1" value="${c.volume ?? 1}"></td>
+    </tr>`; }).join("");
+  document.querySelectorAll("#castTable [data-k]").forEach(el => el.onchange = () => {
+    const n = el.closest("tr").dataset.n; dstate.cast[n] = dstate.cast[n] || {};
+    dstate.cast[n][el.dataset.k] = el.type === "range" ? +el.value : el.value;
+    dramaParse();
+  });
+  const est = r.estimate || {};
+  $("#dramaStat").innerHTML = `共 <b>${names.length}</b> 個角色、<b>${r.line_count}</b> 句、<b>${r.char_count}</b> 字 · 預估製作時間 <b>${fmtT(est.seconds||0)}</b>` +
+    (est.cached_lines ? `（已做過 ${est.cached_lines} 句，會直接沿用）` : "");
+  $("#dramaWarn").innerHTML = (r.warnings||[]).map(esc).join("<br>");
+  $("#dramaWarn").classList.toggle("hide", !(r.warnings||[]).length);
+}
+
+async function loadAmbience(){
+  try {
+    const r = await api("/api/ambience");
+    const all = [...r.builtin, ...r.custom];
+    $("#ambList").innerHTML = all.map(n => `<button class="btn small" data-amb="${esc(n)}">🔊 ${esc(n)}</button>`).join("");
+    document.querySelectorAll("[data-amb]").forEach(b => b.onclick = () => {
+      const p = $("#ambPlayer"); p.classList.remove("hide");
+      p.src = withKey("/api/ambience/preview/" + encodeURIComponent(b.dataset.amb) + "?t=" + Date.now()); p.play().catch(()=>{});
+    });
+  } catch(e) {}
+}
+$("#ambUpload").onchange = async () => {
+  const f = $("#ambUpload").files[0]; if (!f) return;
+  const name = window.prompt("這個背景音要叫什麼名字？（劇本裡用 [背景 名字] 使用）", f.name.replace(/\.[^.]+$/, "")) || "";
+  const fd = new FormData(); fd.append("file", f);
+  try { await api("/api/ambience?name=" + encodeURIComponent(name), {method:"POST", body: fd}); loadAmbience(); }
+  catch(e) { showDramaErr(e.message); }
+};
+
+$("#dramaGo").onclick = async () => {
+  showDramaErr("");
+  try {
+    const job = await api("/api/drama/jobs", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({
+      script: $("#dramaScript").value, cast: dstate.cast, title: $("#dramaTitle").value,
+      pace: dstate.pace, room: dstate.room, ambience_volume: +$("#ambVol").value })});
+    dstate.job = job.id; try { localStorage.setItem("drama_job", job.id); } catch(e) {}
+    $("#dramaResult").classList.remove("show"); watchJob();
+  } catch(e) { showDramaErr(e.message); }
+};
+
+function watchJob(){
+  clearInterval(dstate.timer);
+  const tick = async () => {
+    if (!dstate.job) return;
+    let j; try { j = await api("/api/drama/jobs/" + dstate.job); } catch(e) { clearInterval(dstate.timer); return; }
+    $("#dramaProg").classList.remove("hide");
+    $("#dramaGo").disabled = j.status === "running" || j.status === "queued";
+    const pct = j.total_lines ? Math.round(j.done_lines / j.total_lines * 100) : 0;
+    $("#dramaBar").style.width = (j.status === "done" ? 100 : pct) + "%";
+    if (j.status === "queued") $("#dramaProgText").textContent = "排隊中…（前面還有工作在做）";
+    else if (j.status === "running") $("#dramaProgText").innerHTML =
+      `第 <b>${Math.min(j.done_lines+1, j.total_lines)}</b> / ${j.total_lines} 句 · 已花 ${fmtT(j.elapsed)}` +
+      (j.eta ? ` · 預估還要 <b>${fmtT(j.eta)}</b>` : "") + `<br>正在錄：${esc(j.current)}`;
+    else if (j.status === "error") { $("#dramaProgText").textContent = "失敗：" + j.message; $("#dramaGo").disabled = false; clearInterval(dstate.timer); }
+    else if (j.status === "done") {
+      clearInterval(dstate.timer); $("#dramaGo").disabled = false;
+      $("#dramaProgText").textContent = `完成！共花 ${fmtT(j.elapsed)}`;
+      const url = withKey("/outputs/" + j.mp3_file);
+      $("#dramaPlayer").src = url; $("#dramaDl").href = url;
+      $("#dramaDl").setAttribute("download", (j.title || "小說劇場") + ".mp3");
+      $("#dramaResInfo").textContent = `${j.title} · ${j.seconds} 秒 · 立體聲`;
+      $("#dramaResult").classList.add("show");
+      try { localStorage.removeItem("drama_job"); } catch(e) {}
+      loadHistory();
+    }
+  };
+  tick(); dstate.timer = setInterval(tick, 3000);
+}
+
+let dramaReady = false;
+async function dramaEnter(){
+  if (!dramaReady) { dramaReady = true; await loadVoices(); loadAmbience();
+    try { const j = localStorage.getItem("drama_job"); if (j) { dstate.job = j; watchJob(); } } catch(e) {} }
+  dramaParse();
+}
+
+// ================= 手機安裝（PWA） =================
+if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "127.0.0.1" || location.hostname === "localhost")) {
+  navigator.serviceWorker.register("/sw.js").catch(()=>{});
+}
+let installEvt = null;
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEvt = e; $("#installBtn").classList.add("show"); });
+$("#installBtn").onclick = async () => { if (installEvt) { installEvt.prompt(); installEvt = null; $("#installBtn").classList.remove("show"); } };
+
+// ================= 密碼 =================
+function showLogin(){ $("#login").classList.remove("hide"); }
+$("#pwGo").onclick = async () => {
+  state.key = $("#pw").value.trim();
+  try { await api("/api/voices"); try{localStorage.setItem("tts_key", state.key);}catch(e){}
+        $("#login").classList.add("hide"); init(); }
+  catch (e) { $("#pwErr").classList.remove("hide"); }
+};
+
+function esc(s){ return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+async function init(){ await refreshStatus(); try { await loadVoices(); await loadHistory(); } catch(e){} }
+init();
+</script>
+</body>
+</html>
