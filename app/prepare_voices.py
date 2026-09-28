@@ -12,7 +12,7 @@
   voices/candidates/<聲音id>__<來源>_<n>.wav   （+ 同名 .json 說明）
 網頁「聲音範本」分頁可以試聽並「選用」；尚未設定的聲音會自動套用第 1 個候選。
 
-用法：%USERPROFILE%\\indextts-py311\\python.exe prepare_voices.py   （start_server.bat 第一次啟動會自動執行）
+用法：.venv\\Scripts\\python.exe prepare_voices.py      （start_server.bat 第一次啟動會自動執行）
 """
 from __future__ import annotations
 

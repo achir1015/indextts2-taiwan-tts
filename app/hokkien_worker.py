@@ -27,6 +27,7 @@ except Exception:
 state = {"status": "loading", "message": "台語模型載入中…"}
 model = None
 lock = threading.Lock()
+progress = {"busy": False, "seg": 0, "total": 0, "started": 0.0}   # 給網頁顯示進度
 prompt_cache = {}   # 同一個樣本檔只做一次聲音特徵（樣本檔更新時間也算進 key）
 
 
@@ -45,23 +46,59 @@ def load():
         state.update(status="error", message=f"台語模型載入失敗：{e}")
 
 
+def split_sentences(text, max_len=40):
+    """長文切成一句一句（模型一次處理太長會變慢、也容易唸錯）。"""
+    import re
+    parts, buf = [], ""
+    for piece in re.split(r"(?<=[。！？!?；;\n])", text):
+        piece = piece.strip()
+        if not piece:
+            continue
+        # 單句還是太長 → 再用逗號切
+        subs = re.split(r"(?<=[，,、：:])", piece) if len(piece) > max_len else [piece]
+        for sub in subs:
+            if buf and len(buf) + len(sub) > max_len:
+                parts.append(buf)
+                buf = ""
+            buf += sub
+    if buf:
+        parts.append(buf)
+    return [p for p in parts if re.search(r"[\u4e00-\u9fffA-Za-z0-9]", p)] or [text]
+
+
 def synth(text, ref_wav, out_wav):
+    import time
+    import numpy as np
     import soundfile as sf
     key = (ref_wav, os.path.getmtime(ref_wav)) if ref_wav and os.path.exists(ref_wav) else None
+    chunks = split_sentences(text)
     with lock:
-        kwargs = {"text": text, "language": "nan"}
-        if key:
-            if key not in prompt_cache:
-                # 不給逐字稿 → OmniVoice 會自動用 Whisper 聽寫樣本
-                prompt_cache[key] = model.create_voice_clone_prompt(ref_audio=ref_wav)
-            kwargs["voice_clone_prompt"] = prompt_cache[key]
-        audios = model.generate(**kwargs)
-    y = audios[0]
-    try:
-        y = y.detach().float().cpu().numpy()
-    except AttributeError:
-        pass
-    sf.write(out_wav, y.squeeze(), model.sampling_rate)
+        t0 = time.time()
+        progress.update(busy=True, seg=0, total=len(chunks), started=t0)
+        try:
+            prompt = None
+            if key:
+                if key not in prompt_cache:
+                    # 不給逐字稿 → OmniVoice 會自動用 Whisper 聽寫樣本（同一個樣本只做一次）
+                    prompt_cache[key] = model.create_voice_clone_prompt(ref_audio=ref_wav)
+                prompt = prompt_cache[key]
+            pieces = []
+            gap = np.zeros(int(model.sampling_rate * 0.25), dtype=np.float32)
+            for i, c in enumerate(chunks, 1):
+                progress.update(seg=i)
+                kwargs = {"text": c, "language": "nan"}
+                if prompt is not None:
+                    kwargs["voice_clone_prompt"] = prompt
+                y = model.generate(**kwargs)[0]
+                try:
+                    y = y.detach().float().cpu().numpy()
+                except AttributeError:
+                    pass
+                pieces += [np.asarray(y, dtype=np.float32).squeeze(), gap]
+                print(f">> 台語 第 {i}/{len(chunks)} 句完成，已花 {time.time() - t0:.0f} 秒", flush=True)
+            sf.write(out_wav, np.concatenate(pieces), model.sampling_rate)
+        finally:
+            progress.update(busy=False)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -75,7 +112,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path.startswith("/health"):
-            return self._send(200, state)
+            return self._send(200, dict(state, progress=progress))
         self._send(404, {"error": "not found"})
 
     def do_POST(self):

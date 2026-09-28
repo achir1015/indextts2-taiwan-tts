@@ -142,6 +142,14 @@ class HokkienEngine:
             self.status = EngineStatus.NOT_INSTALLED
             self.message = "台語引擎未啟動（需先執行 install_hokkien.bat，之後 start_server.bat 會自動啟動）"
 
+    def progress(self) -> dict:
+        """向工作站詢問進度：{busy, seg, total, started}"""
+        try:
+            with urllib.request.urlopen(self.base_url + "/health", timeout=2) as r:
+                return json.loads(r.read().decode("utf-8")).get("progress") or {}
+        except Exception:
+            return {}
+
     def synthesize(self, order: SynthesisOrder, ref_wav: str, out_wav: str) -> None:
         self.refresh()
         if self.status != EngineStatus.READY:
@@ -150,7 +158,8 @@ class HokkienEngine:
         req = urllib.request.Request(self.base_url + "/synth", data=payload,
                                      headers={"Content-Type": "application/json"})
         with self._lock:
-            with urllib.request.urlopen(req, timeout=600) as r:
+            # 長文在 CPU 上可能要算一個小時以上，這裡等久一點（網頁那邊改成背景工單＋查進度）
+            with urllib.request.urlopen(req, timeout=6 * 3600) as r:
                 res = json.loads(r.read().decode("utf-8"))
         if not res.get("ok"):
             raise RuntimeError("台語合成失敗：" + str(res.get("error")))

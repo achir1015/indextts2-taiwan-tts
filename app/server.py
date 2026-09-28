@@ -17,6 +17,7 @@ import os
 import shutil
 import tempfile
 import threading
+import traceback
 import time
 import re
 import uuid
@@ -131,26 +132,29 @@ def status():
 
 @app.get("/api/progress")
 def progress():
-    """產生中的進度：第幾段 / 共幾段、已花時間、預估剩餘時間。"""
-    p = dict(mandarin.progress)
-    elapsed = time.time() - p["started"] if p["busy"] else 0.0
-    p["elapsed"] = round(elapsed)
-    seg = None
-    desc = p.get("desc", "")
-    if "synthesis" in desc:
-        try:
-            a, b = desc.split()[-1].rstrip(".").split("/")
-            seg = (int(a), int(b))
-        except ValueError:
-            pass
-    p["segment"] = seg
-    # 用「已完成段數」估算剩餘時間
-    if seg and seg[0] > 1 and elapsed > 0:
-        per = elapsed / (seg[0] - 1)
-        p["eta"] = round(per * (seg[1] - seg[0] + 1))
+    """產生中的進度：第幾段 / 共幾段、已花時間、預估剩餘時間（國語、台語都適用）。"""
+    seg, elapsed, value = None, 0.0, 0.0
+    mp = dict(mandarin.progress)
+    if mp.get("busy"):
+        elapsed = time.time() - mp["started"]
+        value = mp.get("value", 0.0)
+        desc = mp.get("desc", "")
+        if "synthesis" in desc:
+            try:
+                a, b = desc.split()[-1].rstrip(".").split("/")
+                seg = (int(a), int(b))
+            except ValueError:
+                pass
     else:
-        p["eta"] = None
-    return p
+        hp = hokkien.progress()
+        if hp.get("busy"):
+            elapsed = time.time() - hp.get("started", time.time())
+            if hp.get("total"):
+                seg = (max(1, int(hp.get("seg", 1))), int(hp["total"]))
+    eta = None
+    if seg and seg[0] > 1 and elapsed > 0:
+        eta = round(elapsed / (seg[0] - 1) * (seg[1] - seg[0] + 1))
+    return {"busy": bool(seg) or elapsed > 0, "segment": seg, "elapsed": round(elapsed), "eta": eta, "value": value}
 
 
 @app.get("/api/voices")
@@ -252,8 +256,71 @@ class TTSRequest(BaseModel):
     bitrate: str = "192k"
 
 
+# ------------------------------------------------------------
+# 產生語音 = 背景工單
+# 比喻：以前是「站在櫃台等錄音」，等太久會被趕走（timed out）；
+#       現在是「領號碼牌」，錄音室在後面慢慢做，網頁每幾秒問一次進度。
+# ------------------------------------------------------------
+class TtsJob:
+    def __init__(self, order: SynthesisOrder, voice):
+        self.id = time.strftime("%Y%m%d_%H%M%S_") + uuid.uuid4().hex[:6]
+        self.order, self.voice = order, voice
+        self.status, self.message = "queued", ""
+        self.result = None
+        self.created_at, self.started_at, self.finished_at = time.time(), 0.0, 0.0
+
+    def to_public(self):
+        p = {"id": self.id, "status": self.status, "message": self.message, "result": self.result,
+             "language": self.order.language, "voice_name": self.voice.name,
+             "elapsed": round((self.finished_at or time.time()) - self.started_at) if self.started_at else 0}
+        if self.status == "running":
+            p["progress"] = progress()
+        return p
+
+
+tts_jobs: dict = {}
+_tts_queue: list = []
+_tts_cv = threading.Condition()
+
+
+def _tts_worker():
+    while True:
+        with _tts_cv:
+            while not _tts_queue:
+                _tts_cv.wait()
+            job = _tts_queue.pop(0)
+        job.status, job.started_at = "running", time.time()
+        order, voice = job.order, job.voice
+        engine = mandarin if order.language == LANG_MANDARIN else hokkien
+        wav_path = os.path.join(OUTPUTS_DIR, job.id + ".wav")
+        mp3_name = job.id + ".mp3"
+        try:
+            engine.synthesize(order, voice.ref_path, wav_path)
+            audio.wav_to_mp3(wav_path, os.path.join(OUTPUTS_DIR, mp3_name), order.speed, order.bitrate,
+                             title=order.text)
+            result = SynthesisResult(
+                id=job.id, mp3_file=mp3_name, text=order.text, voice_id=voice.id, voice_name=voice.name,
+                language=order.language, emotion=order.emotion, speed=order.speed,
+                seconds=round(audio.mp3_seconds(os.path.join(OUTPUTS_DIR, mp3_name)), 2),
+                elapsed=round(time.time() - job.started_at, 1),
+            )
+            history.add(result)
+            job.result, job.status = asdict(result), "done"
+        except Exception as e:
+            traceback.print_exc()
+            job.status, job.message = "error", str(e)
+        finally:
+            job.finished_at = time.time()
+            if os.path.exists(wav_path):
+                os.remove(wav_path)
+
+
+threading.Thread(target=_tts_worker, daemon=True).start()
+
+
 @app.post("/api/tts")
 def tts(req: TTSRequest):
+    """送出工單，立刻回傳工單編號（不再等到做完）。"""
     order = SynthesisOrder(**(req.model_dump() if hasattr(req, "model_dump") else req.dict()))
     try:
         order.validate()
@@ -262,30 +329,28 @@ def tts(req: TTSRequest):
         raise HTTPException(400, str(e))
     if not voice.ready:
         raise HTTPException(400, f"「{voice.name}」還沒有聲音樣本，請先到「聲音範本」設定")
+    if order.language == LANG_HOKKIEN:
+        hokkien.refresh()
+        if hokkien.status != EngineStatus.READY:
+            raise HTTPException(400, hokkien.message)
+    elif mandarin.status != EngineStatus.READY:
+        raise HTTPException(400, mandarin.message)
+    job = TtsJob(order, voice)
+    tts_jobs[job.id] = job
+    with _tts_cv:
+        _tts_queue.append(job)
+        _tts_cv.notify()
+    out = job.to_public()
+    out["queue_position"] = len(_tts_queue)
+    return out
 
-    engine = mandarin if order.language == LANG_MANDARIN else hokkien
-    rid = time.strftime("%Y%m%d_%H%M%S_") + uuid.uuid4().hex[:6]
-    wav_path = os.path.join(OUTPUTS_DIR, rid + ".wav")
-    mp3_name = rid + ".mp3"
-    t0 = time.time()
-    try:
-        engine.synthesize(order, voice.ref_path, wav_path)
-        audio.wav_to_mp3(wav_path, os.path.join(OUTPUTS_DIR, mp3_name), order.speed, order.bitrate,
-                         title=order.text)
-    except Exception as e:
-        raise HTTPException(500, str(e))
-    finally:
-        if os.path.exists(wav_path):
-            os.remove(wav_path)
 
-    result = SynthesisResult(
-        id=rid, mp3_file=mp3_name, text=order.text, voice_id=voice.id, voice_name=voice.name,
-        language=order.language, emotion=order.emotion, speed=order.speed,
-        seconds=round(audio.mp3_seconds(os.path.join(OUTPUTS_DIR, mp3_name)), 2),
-        elapsed=round(time.time() - t0, 1),
-    )
-    history.add(result)
-    return asdict(result)
+@app.get("/api/tts/jobs/{jid}")
+def tts_job(jid: str):
+    job = tts_jobs.get(jid)
+    if not job:
+        raise HTTPException(404, "找不到這張工單（網站重新啟動過？）")
+    return job.to_public()
 
 
 @app.get("/api/history")

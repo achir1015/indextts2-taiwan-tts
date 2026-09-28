@@ -439,35 +439,56 @@ function syncEmotion(){
 $("#emotion").onchange = syncEmotion; $("#emoStrength").oninput = syncEmotion;
 
 // ================= 產生 =================
+// 產生語音 = 送出工單 → 每 3 秒查一次進度（長文也不會 timed out；關掉網頁再開會接著看）
+const fmtS = s => s >= 3600 ? `${Math.floor(s/3600)} 小時 ${Math.round(s%3600/60)} 分` : s >= 60 ? `${Math.floor(s/60)} 分 ${s%60} 秒` : `${s} 秒`;
+let ttsTimer = null;
+function setBusy(on, html){ const btn = $("#go"); btn.disabled = on; btn.innerHTML = on ? `<span class="spin"></span>${html}` : "產生 MP3"; }
+
 $("#go").onclick = async () => {
-  const btn = $("#go"); $("#goErr").classList.add("hide");
-  const t0 = Date.now();
-  btn.disabled = true;
-  const fmt = s => s >= 60 ? `${Math.floor(s/60)} 分 ${s%60} 秒` : `${s} 秒`;
-  let progText = "準備中";
-  const tick = setInterval(() => btn.innerHTML = `<span class="spin"></span>產生中… ${fmt(Math.round((Date.now()-t0)/1000))}　${progText}`, 500);
-  const poll = setInterval(async () => {
-    try {
-      const p = await api("/api/progress");
-      if (p.segment) progText = `第 ${p.segment[0]} / ${p.segment[1]} 段` + (p.eta ? `，預估還要約 ${fmt(p.eta)}` : "");
-      else if (p.value >= 0.9) progText = "存檔中";
-    } catch (e) {}
-  }, 3000);
+  $("#goErr").classList.add("hide");
+  setBusy(true, "送出中…");
   try {
-    const r = await api("/api/tts", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({
+    const j = await api("/api/tts", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({
       text: $("#text").value, voice_id: state.voiceId, language: state.lang,
       emotion: $("#emotion").value, emotion_strength: +$("#emoStrength").value,
       speed: +$("#speed").value, bitrate: $("#bitrate").value })});
-    const url = withKey("/outputs/" + r.mp3_file);
-    $("#player").src = url; $("#player").play().catch(()=>{});
-    $("#resDl").href = url; $("#resDl").setAttribute("download", fileName(r));
-    $("#resInfo").textContent = `${r.voice_name} · 長度 ${r.seconds} 秒 · 花費 ${r.elapsed} 秒`;
-    $("#result").classList.add("show");
-    loadHistory();
+    try { localStorage.setItem("tts_job", j.id); } catch(e) {}
+    watchTts(j.id);
   } catch (e) {
-    $("#goErr").textContent = e.message; $("#goErr").classList.remove("hide");
-  } finally { clearInterval(tick); clearInterval(poll); btn.disabled = false; btn.textContent = "產生 MP3"; }
+    setBusy(false); $("#goErr").textContent = e.message; $("#goErr").classList.remove("hide");
+  }
 };
+
+function watchTts(id){
+  clearInterval(ttsTimer);
+  const tick = async () => {
+    let j;
+    try { j = await api("/api/tts/jobs/" + id); }
+    catch (e) { clearInterval(ttsTimer); setBusy(false); try { localStorage.removeItem("tts_job"); } catch(_) {} return; }
+    if (j.status === "queued") setBusy(true, "排隊中…（前面還有工作在做）");
+    else if (j.status === "running") {
+      const p = j.progress || {};
+      let t = `產生中… 已 ${fmtS(j.elapsed)}`;
+      if (p.segment) t += `　第 ${p.segment[0]} / ${p.segment[1]} ${j.language === "nan" ? "句" : "段"}`;
+      if (p.eta) t += `，預估還要約 ${fmtS(p.eta)}`;
+      setBusy(true, t);
+    } else {
+      clearInterval(ttsTimer); setBusy(false);
+      try { localStorage.removeItem("tts_job"); } catch(e) {}
+      if (j.status === "error") { $("#goErr").textContent = j.message; $("#goErr").classList.remove("hide"); return; }
+      const r = j.result, url = withKey("/outputs/" + r.mp3_file);
+      $("#player").src = url; $("#player").play().catch(()=>{});
+      $("#resDl").href = url; $("#resDl").setAttribute("download", fileName(r));
+      $("#resInfo").textContent = `${r.voice_name} · 長度 ${r.seconds} 秒 · 花費 ${fmtS(Math.round(r.elapsed))}`;
+      $("#result").classList.add("show");
+      loadHistory();
+    }
+  };
+  tick(); ttsTimer = setInterval(tick, 3000);
+}
+// 重新整理網頁後，接著看上一張還沒做完的工單
+try { const pending = localStorage.getItem("tts_job"); if (pending) watchTts(pending); } catch(e) {}
+
 function fileName(r){ return (r.text.replace(/[\\/:*?"<>|\s]/g,"").slice(0,16) || "語音") + "_" + r.voice_name + ".mp3"; }
 
 // ================= 紀錄 =================
